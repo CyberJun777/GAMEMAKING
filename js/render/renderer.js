@@ -7,7 +7,7 @@ import { buildBoard } from './board.js';
 import { Fx } from './fx.js';
 
 const MAX_UNITS = 220, MAX_MON = 160;
-const MODEL_SCALE = 1.22;
+const MODEL_SCALE = 1.5;
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3(), tmpP = new THREE.Vector3(), tmpE = new THREE.Euler();
 const tmpC = new THREE.Color();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -72,7 +72,7 @@ export class Renderer {
     // 카메라: 고정 각도 쿼터뷰, 방향키로 이동, 휠로 줌
     this.camera = new THREE.PerspectiveCamera(42, container.clientWidth / container.clientHeight, 0.5, 120);
     this.camTarget = new THREE.Vector3(0.9, 0, 1.2);
-    this.camDist = 23;
+    this.camDist = 20.5;
     this.camPolar = THREE.MathUtils.degToRad(40);   // 수직에서 기울어진 각
     this.updateCamera();
 
@@ -120,7 +120,7 @@ export class Renderer {
     const std = (o = {}) => new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.2, ...o });
     const glow = (o = {}) => new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.1, emissive: '#ffffff', emissiveIntensity: 0.45, ...o });
     const P = this.parts = {};
-    P.base = inst(new THREE.CylinderGeometry(0.4, 0.45, 0.14, 10).translate(0, 0.07, 0), glow({ emissiveIntensity: 0.22 }), MAX_UNITS);
+    P.base = inst(new THREE.CylinderGeometry(0.34, 0.4, 0.12, 10).translate(0, 0.07, 0), glow({ emissiveIntensity: 0.22 }), MAX_UNITS);
     // 전설·신 후광
     P.halo = inst(new THREE.TorusGeometry(0.5, 0.035, 6, 28).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: 0.9, toneMapped: false }), MAX_UNITS);
     P.halo.castShadow = false;
@@ -160,6 +160,9 @@ export class Renderer {
     const flat = (inner, outer, col, op) => new THREE.Mesh(new THREE.RingGeometry(inner, outer, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: op, depthWrite: false }));
     this.selRings = inst(new THREE.RingGeometry(0.44, 0.52, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7dff9a', toneMapped: false, depthWrite: false }), MAX_UNITS);
     this.selRings.castShadow = false;
+    // 선택한 유닛과 같은 종류(= 합성 짝) 표시: 노란 고리
+    this.sameRings = inst(new THREE.RingGeometry(0.46, 0.53, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffd34d', toneMapped: false, depthWrite: false, transparent: true, opacity: 0.9 }), MAX_UNITS);
+    this.sameRings.castShadow = false; this.sameRings.position.y = 0.021; this.scene.add(this.sameRings);
     this.rangeRing = flat(0.97, 1, '#7dff9a', 0.55);
     this.rangeFill = new THREE.Mesh(new THREE.CircleGeometry(1, 64).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#7dff9a', transparent: true, opacity: 0.06, depthWrite: false }));
     this.hover = new THREE.Mesh(new THREE.PlaneGeometry(0.94, 0.94).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.12, depthWrite: false }));
@@ -223,7 +226,8 @@ export class Renderer {
       mesh.setMatrixAt(i, tmpM);
       mesh.setColorAt(i, col);
     };
-    let si = 0;
+    let si = 0, qi = 0;
+    const primSel = selection.size ? game.unitById([...selection][0]) : null;
     for (const u of game.units) {
       const g = u.def.grade, f = u.def.faction;
       const sc = 0.82 + g * 0.11;
@@ -243,9 +247,13 @@ export class Renderer {
       if (selection.has(u.id)) {
         tmpM.makeTranslation(u.x, 0, u.z);
         this.selRings.setMatrixAt(si++, tmpM);
+      } else if (primSel && u.type === primSel.type) {
+        tmpM.makeTranslation(u.x, 0, u.z);
+        this.sameRings.setMatrixAt(qi++, tmpM);
       }
     }
     this.selRings.count = si;
+    this.sameRings.count = qi; this.sameRings.instanceMatrix.needsUpdate = true;
     for (const k in P) { P[k].instanceMatrix.needsUpdate = true; if (P[k].instanceColor) P[k].instanceColor.needsUpdate = true; }
     this.selRings.instanceMatrix.needsUpdate = true;
 

@@ -24,6 +24,15 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); c
 .stat b { font-size: 16px; font-variant-numeric: tabular-nums; }
 .stat small { color: var(--dim); font-variant-numeric: tabular-nums; }
 .stat.right { margin-left: auto; }
+.tb { gap: 6px; align-items: center; }
+.tb button { background: rgba(255,255,255,.06); border: 1px solid var(--line); color: #e8eef2; border-radius: 6px; padding: 4px 10px;
+  font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.tb button:hover { background: rgba(255,255,255,.14); }
+.tb button.on { border-color: #ffd34d; color: #ffd34d; }
+#tip { position: fixed; z-index: 8; pointer-events: none; display: none; padding: 5px 9px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 6px; font-size: 12px; white-space: nowrap; transform: translate(14px, 14px); }
+#tip b { font-size: 13px; }
+#tip small { color: var(--dim); display: block; }
 .lbl { color: var(--dim); }
 .ico { width: 12px; height: 12px; border-radius: 3px; display: inline-block; align-self: center; }
 .ico.min { background: var(--min); transform: rotate(45deg); }

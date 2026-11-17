@@ -16,10 +16,10 @@ python3 -m http.server 8765
 | G | 선택 유닛 판매 |
 | 1 / 2 / 3 | 기계 / 생체 / 비전 업그레이드 |
 | Z / X / C | 미션 보스 1 / 2 / 3 |
-| 클릭 · 드래그 · 더블클릭 | 선택 |
-| 우클릭 | 선택 유닛 이동 |
+| 클릭 · 빈 곳 드래그 · 더블클릭 | 선택 |
+| 유닛 끌어다 놓기 / 우클릭 | 유닛 이동 |
 | 방향키 · 휠 | 카메라 이동 · 줌 |
-| Space / Tab | 일시정지 / 배속 |
+| Space / Tab | 일시정지 / 배속 (상단 버튼으로도) |
 | M | 효과음 켜기/끄기 |
 
 길 위 몬스터가 70마리가 되면 패배, 40라운드 보스를 잡으면 승리.
@@ -27,7 +27,7 @@ python3 -m http.server 8765
 ## 테스트
 ```bash
 npm test               # 시뮬레이션 25개 (Node)
-npm run test:browser   # 브라우저 21개 (Playwright, 서버 먼저 실행)
+npm run test:browser   # 브라우저 24개 (Playwright, 서버 먼저 실행)
 npm run balance        # 봇 6판 밸런스 측정
 ```
 

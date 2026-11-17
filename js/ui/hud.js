@@ -10,6 +10,7 @@ export class HUD {
     this.app = app;
     this.last = {};
     this.buildDex();
+    this.buildOdds();
     this.bindButtons();
     for (let i = 0; i < 3; i++) $(`bMis${i}`).querySelector('small').textContent = `광물 ${MISSIONS[i].reward.minerals} · 가스 ${MISSIONS[i].reward.gas}`;
   }
@@ -34,6 +35,14 @@ export class HUD {
     }
   }
 
+  // 뽑기 확률 (config의 drawWeight에서 계산 → 수치를 바꾸면 화면도 같이 바뀜)
+  buildOdds() {
+    const total = GRADES.reduce((s, g) => s + g.drawWeight, 0);
+    const parts = GRADES.filter(g => g.drawWeight > 0).map(g => `<span style="color:${g.color}">${g.name} ${+(g.drawWeight / total * 100).toFixed(2)}%</span>`);
+    const mergeOnly = GRADES.filter(g => g.drawWeight === 0).map(g => g.name).join('·');
+    $('odds').innerHTML = `뽑기 확률: ${parts.join(' · ')}${mergeOnly ? `<br>${mergeOnly}은 합성으로만 획득` : ''}`;
+  }
+
   bindButtons() {
     const a = this.app;
     // 버튼이 포커스를 가져가면 Space 키가 그 버튼을 눌러버린다 → 포커스를 받지 않게
@@ -50,6 +59,10 @@ export class HUD {
     $('bC2G').onclick = () => a.cmd('exchange', 'c2g');
     for (let i = 0; i < 3; i++) $(`bMis${i}`).onclick = () => a.cmd('mission', i);
     $('bRestart').onclick = () => a.restart();
+    // 상단 바: 배속·일시정지·소리도 마우스로 (키: Tab / Space / M)
+    $('bSpeed').onclick = () => a.toggleSpeed();
+    $('bPause').onclick = () => a.togglePause();
+    $('bSound').onclick = () => { a.audio.unlock(); a.toggleMute(); };
   }
 
   toast(text, color = '#fff') {
@@ -99,9 +112,11 @@ export class HUD {
     this.set('gaugeText', `${g.normalCount} / ${lim}`);
     $('gaugeFill').style.width = `${Math.min(100, g.normalCount / lim * 100)}%`;
     $('gauge').className = g.normalCount >= 60 ? 'crit' : g.normalCount >= 50 ? 'warn' : '';
-    this.set('speed', `${this.app.speed}×`);
-    this.set('paused', this.app.paused ? '일시정지' : '');
-    this.set('sound', this.app.audio.muted ? '🔇 M' : '🔊 M');
+    this.set('speed', `${this.app.speed}× 배속`);
+    this.set('paused', this.app.paused ? '▶ 계속' : '⏸ 일시정지');
+    this.set('sound', this.app.audio.muted ? '🔇 소리' : '🔊 소리');
+    $('bSpeed').classList.toggle('on', this.app.speed > 1);
+    $('bPause').classList.toggle('on', this.app.paused);
 
     // 보스/미션 바
     const bossBar = $('bossbar');

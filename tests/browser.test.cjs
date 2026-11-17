@@ -295,6 +295,60 @@ async function check(name, fn) {
     assert.equal(after, before, 'M은 게임 상태를 바꾸지 않음');
   });
 
+  await check('34. 끌어다 놓기 이동: 빈 칸 O, 찬 칸·길 X (박스 선택과 구분)', async () => {
+    const id = await ev(() => { const a = window.__app, g = a.game; a.paused = true; for (const u of [...g.units]) g.removeUnit(u); g.addUnit('m0', 4, 4); g.addUnit('b0', 6, 6); a.selection.clear(); return g.unitAt(4, 4).id; });
+    await page.waitForTimeout(200);
+    const dragTo = async (cx, cy) => {
+      const p = await screenOf(id), q = await cellScreen(cx, cy);
+      await page.mouse.move(p.x, p.y); await page.mouse.down();
+      await page.mouse.move(q.x, q.y, { steps: 6 }); await page.mouse.up();
+      return ev((id) => { const u = window.__app.game.unitById(id); return [u.cx, u.cy]; }, id);
+    };
+    assert.deepEqual(await dragTo(6, 6), [4, 4], '찬 칸으로는 안 감');
+    assert.deepEqual(await dragTo(1, 5), [4, 4], '길로는 안 감');
+    assert.deepEqual(await dragTo(8, 5), [8, 5], '빈 칸으로 이동');
+    assert.deepEqual(await ev(() => [...window.__app.selection]), [id], '옮긴 유닛이 선택됨');
+  });
+
+  await check('35. 상단 버튼: 배속·일시정지·소리를 마우스로', async () => {
+    await ev(() => { const a = window.__app; a.speed = 1; a.paused = false; });
+    await page.click('#bSpeed');
+    assert.equal(await ev(() => window.__app.speed), 2);
+    await page.waitForFunction(() => /2×/.test(document.getElementById('speed').textContent), null, { timeout: 5000 }).catch(() => {});
+    assert.match(await text('#speed'), /2×/);
+    await page.click('#bSpeed');
+    assert.equal(await ev(() => window.__app.speed), 1);
+    await page.click('#bPause');
+    assert.equal(await ev(() => window.__app.paused), true);
+    await page.click('#bPause');
+    assert.equal(await ev(() => window.__app.paused), false);
+    const m0 = await ev(() => window.__app.audio.muted);
+    await page.click('#bSound');
+    assert.equal(await ev(() => window.__app.audio.muted), !m0);
+    await page.click('#bSound');
+    assert.equal(await ev(() => window.__app.audio.muted), m0);
+    // 버튼을 누른 뒤 Space/Tab이 버튼을 다시 누르지 않음 (회귀 방지)
+    await page.keyboard.press('Tab');
+    assert.equal(await ev(() => window.__app.speed), 2, 'Tab 1번 = 배속 1번만 바뀜');
+    await page.keyboard.press('Tab');
+    await ev(() => { window.__app.paused = true; });
+  });
+
+  await check('36. 구분 보조: 마우스 올리면 이름표, 선택하면 같은 종류에 노란 고리, 뽑기 확률 표시', async () => {
+    const id = await ev(() => { const a = window.__app, g = a.game; for (const u of [...g.units]) g.removeUnit(u); g.addUnit('a0', 4, 4); g.addUnit('a0', 9, 9); g.addUnit('a0', 11, 4); g.addUnit('m0', 6, 9); a.selection.clear(); return g.unitAt(4, 4).id; });
+    const p = await screenOf(id);
+    await page.mouse.move(p.x, p.y);
+    await page.mouse.move(p.x + 1, p.y + 1);
+    await page.waitForFunction(() => getComputedStyle(document.getElementById('tip')).display !== 'none', null, { timeout: 5000 }).catch(() => {});
+    assert.match(await text('#tip'), /불씨술사.*일반.*비전[\s\S]*보유 3기/);
+    await page.mouse.click(p.x, p.y);
+    await raf2(); await raf2();
+    assert.equal(await ev(() => window.__app.renderer.sameRings.count), 2, '같은 종류 2기에 노란 고리');
+    assert.match(await text('#odds'), /일반 82% · 희귀 15% · 영웅 3%/);
+    assert.match(await text('#odds'), /전설·신은 합성으로만/);
+    await page.mouse.move(5, 300);
+  });
+
   await check('28. 최악 장면 성능 예산 (draw call ≤ 200, 삼각형 ≤ 40만)', async () => {
     const r = await ev(async () => {
       const a = window.__app, g = a.game;
