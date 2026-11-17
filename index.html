@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>프리즘 링 — 랜덤 타워 디펜스</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="view"></div>
+  <div id="box"></div>
+
+  <header id="top">
+    <div class="stat"><span class="lbl">라운드</span><b id="round">0/40</b><small id="timer"></small></div>
+    <div class="stat"><span class="ico min"></span><b id="minerals">0</b></div>
+    <div class="stat"><span class="ico gas"></span><b id="gas">0</b></div>
+    <div class="stat"><span class="ico cry"></span><b id="crystals">0</b></div>
+    <div class="stat"><span class="lbl">목숨</span><b id="lives"></b></div>
+    <div id="gauge"><div id="gaugeFill"></div><span id="gaugeText">0 / 70</span></div>
+    <div class="stat right"><b id="speed">1×</b><small id="paused"></small></div>
+  </header>
+
+  <div id="bossbar" class="hidden"><div class="name" id="bossName">보스</div><div class="bar"><div id="bossFill"></div></div><div id="bossTime"></div></div>
+  <div id="missionbar" class="hidden"><div class="name" id="missionName">미션</div><div class="bar"><div id="missionFill"></div></div><div id="missionTime"></div></div>
+
+  <aside id="dex"><h3>보유 유닛</h3><div id="dexGrid"></div><p class="hint">같은 유닛 2기 = 합성 가능 (반짝임)</p></aside>
+
+  <footer id="bottom">
+    <section id="sel"><div class="empty">유닛을 선택하세요<br><small>클릭 · 드래그 · 더블클릭</small></div></section>
+    <section id="cmds">
+      <button id="bDraw"  data-key="D"><b>뽑기</b><small>광물 50</small></button>
+      <button id="bMerge" data-key="F"><b>합성</b><small>같은 유닛 2기</small></button>
+      <button id="bSell"  data-key="G"><b>판매</b><small id="sellPrice">-</small></button>
+      <button id="bUp0"   data-key="1" class="up mech"><b>기계 +</b><small></small></button>
+      <button id="bUp1"   data-key="2" class="up bio"><b>생체 +</b><small></small></button>
+      <button id="bUp2"   data-key="3" class="up arc"><b>비전 +</b><small></small></button>
+      <div class="exch">
+        <button id="bM2G" title="광물 100 → 가스 60">광물→가스</button>
+        <button id="bG2M" title="가스 100 → 광물 60">가스→광물</button>
+        <button id="bC2G" title="결정 1 → 가스 250">결정→가스</button>
+      </div>
+    </section>
+    <section id="missions">
+      <button id="bMis0" data-key="Z"><b>미션 1</b><small></small><i class="cd"></i></button>
+      <button id="bMis1" data-key="X"><b>미션 2</b><small></small><i class="cd"></i></button>
+      <button id="bMis2" data-key="C"><b>미션 3</b><small></small><i class="cd"></i></button>
+    </section>
+  </footer>
+
+  <div id="toasts"></div>
+
+  <div id="overlay" class="hidden">
+    <div class="card">
+      <h1 id="ovTitle">승리</h1>
+      <p id="ovReason"></p>
+      <ul id="ovStats"></ul>
+      <button id="bRestart">다시 하기</button>
+    </div>
+  </div>
+
+  <div id="help">D 뽑기 · F 합성 · G 판매 · 1/2/3 업그레이드 · Z/X/C 미션 · 우클릭 이동 · 방향키 카메라 · 휠 줌 · Space 일시정지 · Tab 배속</div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
