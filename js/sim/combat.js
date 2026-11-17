@@ -7,6 +7,8 @@ function hit(g, u, m, raw) {
   if (!m.alive) return;
   const dmg = Math.max(1, raw - m.armor);
   m.hp -= dmg;
+  // 피해 숫자 연출용: 일반 몬스터는 최대 체력의 절반 이상인 큰 한 방만 알림 (보스는 화면에서 체력 감소량으로 표시)
+  if (m.kind === 'normal' && dmg >= m.maxHp * 0.5) g.emit({ t: 'bighit', x: m.x, z: m.z, v: dmg, gr: u.def.grade });
   u.dealt += Math.min(dmg, m.hp + dmg);
   if (u.def.slow) applySlow(m, u.def.slow);
   if (m.hp <= 0) g.killMonster(m);

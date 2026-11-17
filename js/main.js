@@ -5,6 +5,8 @@ import { isBuildable, BUILD_CELLS } from './sim/board.js';
 import { Renderer } from './render/renderer.js';
 import { HUD } from './ui/hud.js';
 import { Input } from './input.js';
+import { Sfx } from './audio.js';
+import { DamageNumbers } from './ui/dmgnum.js';
 
 const STEP = 1 / SIM_HZ;
 
@@ -17,6 +19,8 @@ class App {
     this.speed = 1;
     this.paused = false;
     this.renderer = new Renderer(document.getElementById('view'));
+    this.audio = new Sfx();
+    this.dmg = new DamageNumbers(document.getElementById('dmgLayer'));
     this.hud = new HUD(this);
     this.input = new Input(this);
     this.acc = 0;
@@ -38,11 +42,14 @@ class App {
     // 사라진 유닛은 선택에서 제거
     for (const id of this.selection) if (!this.game.unitById(id)) this.selection.delete(id);
     const ev = this.game.events;
-    this.renderer.consume(ev);
+    this.renderer.consume(ev, this.game);
     this.hud.consume(ev);
+    this.audio.consume(ev);
+    this.dmg.consume(ev);
     ev.length = 0;
     const t0 = performance.now();
     this.renderer.render(this.game, this.paused ? 1 : this.acc / STEP, this.paused ? 0 : dt, this.selection);
+    this.dmg.update(this.game, this.renderer, this.paused ? 0 : dt * this.speed);
     this.frameMs = this.frameMs * 0.9 + (performance.now() - t0) * 0.1;
     this.fps = this.fps * 0.95 + (dt > 0 ? 1 / dt : 60) * 0.05;
     this.hud.update(this.game, this.selection);
@@ -100,12 +107,14 @@ class App {
     for (const u of units) { const c = free[i++]; if (!c) break; g.move(u.id, c.cx, c.cy); }
   }
 
+  toggleMute() { const m = this.audio.toggleMute(); this.hud.toast(m ? '소리 끔 (M)' : '소리 켬 (M)', '#9fb'); return m; }
   togglePause() { this.paused = !this.paused; }
   toggleSpeed() { this.speed = this.speed === 1 ? 2 : 1; }
   restart() {
     this.game = new Game({ seed: (this.seed = (this.seed * 7 + 13) % 1e9) });
     this.selection.clear();
     this.renderer.reset();
+    this.dmg.clear();
     this.paused = false;
     this.hud.last = {};
     document.getElementById('overlay').classList.add('hidden');   // 다음 프레임을 기다리지 않고 즉시 닫기

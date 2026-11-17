@@ -17,7 +17,7 @@
     <div class="stat"><span class="ico cry"></span><b id="crystals">0</b></div>
     <div class="stat"><span class="lbl">목숨</span><b id="lives"></b></div>
     <div id="gauge"><div id="gaugeFill"></div><span id="gaugeText">0 / 70</span></div>
-    <div class="stat right"><b id="speed">1×</b><small id="paused"></small></div>
+    <div class="stat right"><b id="speed">1×</b><small id="paused"></small><small id="sound" title="M: 음소거"></small></div>
   </header>
 
   <div id="bossbar" class="hidden"><div class="name" id="bossName">보스</div><div class="bar"><div id="bossFill"></div></div><div id="bossTime"></div></div>
@@ -48,6 +48,9 @@
   </footer>
 
   <div id="toasts"></div>
+  <div id="dmgLayer"></div>
+  <div id="flash"></div>
+  <div id="bossWarn"><div class="band"><b>⚠ WARNING ⚠</b><span id="bossWarnText">보스 등장</span></div></div>
 
   <div id="overlay" class="hidden">
     <div class="card">
@@ -58,7 +61,7 @@
     </div>
   </div>
 
-  <div id="help">D 뽑기 · F 합성 · G 판매 · 1/2/3 업그레이드 · Z/X/C 미션 · 우클릭 이동 · 방향키 카메라 · 휠 줌 · Space 일시정지 · Tab 배속</div>
+  <div id="help">D 뽑기 · F 합성 · G 판매 · 1/2/3 업그레이드 · Z/X/C 미션 · 우클릭 이동 · 방향키 카메라 · 휠 줌 · Space 일시정지 · Tab 배속 · M 소리</div>
 
   <script type="module" src="js/main.js"></script>
 </body>

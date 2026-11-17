@@ -62,7 +62,26 @@ export class HUD {
   }
 
   consume(events) {
-    for (const e of events) if (e.t === 'toast') this.toast(e.text, e.color);
+    for (const e of events) {
+      if (e.t === 'toast') this.toast(e.text, e.color);
+      else if (e.t === 'merge' && e.g >= 2) this.flash(GRADES[e.g].color, e.g);
+      else if (e.t === 'spawn' && e.kind === 'boss') this.bossWarning(this.app.game.round);
+    }
+  }
+  // 영웅 이상 합성: 화면 테두리가 등급 색으로 번쩍
+  flash(color, g) {
+    const el = $('flash');
+    el.style.setProperty('--c', color);
+    el.style.setProperty('--dur', `${0.5 + g * 0.15}s`);
+    el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+  }
+  // 보스 등장 경고: 배너 + 붉은 비네트 (약 3초)
+  bossWarning(round) {
+    const el = $('bossWarn');
+    $('bossWarnText').textContent = `${round}라운드 보스 등장`;
+    el.classList.remove('on'); void el.offsetWidth; el.classList.add('on');
+    clearTimeout(this.warnT);
+    this.warnT = setTimeout(() => el.classList.remove('on'), 3200);
   }
 
   set(id, v, prop = 'textContent') { if (this.last[id] !== v) { this.last[id] = v; $(id)[prop] = v; } }
@@ -82,6 +101,7 @@ export class HUD {
     $('gauge').className = g.normalCount >= 60 ? 'crit' : g.normalCount >= 50 ? 'warn' : '';
     this.set('speed', `${this.app.speed}×`);
     this.set('paused', this.app.paused ? '일시정지' : '');
+    this.set('sound', this.app.audio.muted ? '🔇 M' : '🔊 M');
 
     // 보스/미션 바
     const bossBar = $('bossbar');

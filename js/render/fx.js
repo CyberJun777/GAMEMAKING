@@ -36,9 +36,22 @@ export class Fx {
     if (e.kind === 'splash') this.ring(e.tx, e.tz, e.r, col, 0.3);
     else if (e.gr >= 1) this.burst(e.tx, e.tz, col, 2 + e.gr, 0.25);
   }
-  ring(x, z, r, col, life = 0.3, op = 1) {
+  ring(x, z, r, col, life = 0.3, op = 1, delay = 0) {
     if (this.rings.length >= MAX_RING) return;
-    this.rings.push({ x, z, r, col: new THREE.Color(col).multiplyScalar(op), life, max: life });
+    this.rings.push({ x, z, r, col: new THREE.Color(col).multiplyScalar(op), life, max: life, delay });
+  }
+  // 합성 연출: 등급이 높을수록 크고 길게. 빛기둥 + 시간차 고리 여러 겹 + 파편 (기존 인스턴스 재사용 → draw call 증가 없음)
+  mergeBlast(x, z, g) {
+    const col = gradeCol[g];
+    const h = 1.6 + g * 0.7, life = 0.55 + g * 0.18;
+    if (this.beams.length < MAX_BEAM) this.beams.push({ a: new THREE.Vector3(x, 0.05, z), b: new THREE.Vector3(x, h, z), col: col.clone().multiplyScalar(1.4), w: 0.16 + g * 0.06, life, max: life, pillar: true });
+    for (let i = 0; i <= g + 1; i++) this.ring(x, z, 1.0 + i * 0.55 + g * 0.2, col, 0.45 + g * 0.08, 1.2 - i * 0.15, i * 0.09);
+    this.burst(x, z, col, 12 + g * 8, 0.7 + g * 0.15);
+  }
+  // 보스 등장 경고: 붉은 고리 연속
+  bossWarn(x, z) {
+    const col = new THREE.Color('#ff3040');
+    for (let i = 0; i < 5; i++) this.ring(x, z, 2.6 - i * 0.35, col, 0.6, 1.3, i * 0.14);
   }
   burst(x, z, col, n, speed = 1) {
     const c = new THREE.Color(col);
@@ -57,14 +70,16 @@ export class Fx {
       const k = b.life / b.max;
       const d = P.subVectors(b.b, b.a); const len = d.length();
       Q.setFromUnitVectors(Z, d.normalize());
-      M.compose(P.addVectors(b.a, b.b).multiplyScalar(0.5), Q, S.set(b.w * (0.5 + k), b.w * (0.5 + k), len));
+      const w = b.pillar ? b.w * Math.min(1, k * 2.5) : b.w * (0.5 + k);
+      M.compose(P.addVectors(b.a, b.b).multiplyScalar(0.5), Q, S.set(w, w, len));
       bm.setMatrixAt(n, M); bm.setColorAt(n++, C.copy(b.col).multiplyScalar(0.4 + k * 1.4));
     }
     bm.count = n; bm.instanceMatrix.needsUpdate = true; if (bm.instanceColor) bm.instanceColor.needsUpdate = true;
     // 충격파
     n = 0; const rm = this.ringMesh;
-    this.rings = this.rings.filter(r => (r.life -= dt) > 0);
+    this.rings = this.rings.filter(r => r.delay > 0 ? ((r.delay -= dt), true) : (r.life -= dt) > 0);
     for (const r of this.rings) {
+      if (r.delay > 0) continue;
       const k = r.life / r.max, s = r.r * (1.1 - k * 0.5);
       Q.identity(); M.compose(P.set(r.x, 0.08, r.z), Q, S.set(s, 1, s));
       rm.setMatrixAt(n, M); rm.setColorAt(n++, C.copy(r.col).multiplyScalar(k));

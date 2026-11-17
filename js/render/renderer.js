@@ -93,6 +93,7 @@ export class Renderer {
     this.fx = new Fx(scene);
 
     this.unitYaw = new Map();   // 유닛 id → 포신 방향
+    this.shake = -1;
     this.clock = 0;
     window.addEventListener('resize', () => this.resize());
   }
@@ -176,13 +177,18 @@ export class Renderer {
   }
 
   // 시뮬레이션 이벤트 → 이펙트
-  consume(events) {
+  consume(events, game) {
     for (const e of events) {
       if (e.t === 'atk') {
         if (e.uid) this.unitYaw.set(e.uid, Math.atan2(e.tx - e.x, e.tz - e.z));
         this.fx.attack(e);
       } else if (e.t === 'die') this.fx.burst(e.x, e.z, e.kind === 'normal' ? '#ff6a7a' : '#ffd34d', e.kind === 'normal' ? 6 : 30);
-      else if (e.t === 'merge') { this.fx.ring(e.x, e.z, 1.4, gradeCol[e.g], 0.5); this.fx.burst(e.x, e.z, GRADES[e.g].color, 14, 0.6); }
+      else if (e.t === 'merge') this.fx.mergeBlast(e.x, e.z, e.g);
+      else if (e.t === 'spawn' && e.kind === 'boss' && game) {
+        const m = game.monsters.find(m => m.id === e.id);
+        if (m) this.fx.bossWarn(m.x, m.z);
+        this.shake = 0.7;
+      }
       else if (e.t === 'unit') this.fx.ring(e.x, e.z, 0.7, gradeCol[e.g], 0.35);
       else if (e.t === 'escape') this.fx.burst(e.x, e.z, '#888', 20);
     }
@@ -196,7 +202,15 @@ export class Renderer {
     this.drawUnits(game, t, selection);
     this.drawMonsters(game, alpha, t);
     this.fx.update(dt, this.camera);
+    // 보스 등장 시 카메라 흔들림 (camTarget은 그대로, 렌더할 때만 잠깐 어긋남)
+    const c = this.camera;
+    if (this.shake > 0) {
+      this.shake = Math.max(0, this.shake - dt);
+      const a = this.shake * 0.25;
+      c.position.x += Math.sin(t * 61) * a; c.position.y += Math.sin(t * 47) * a * 0.5;
+    }
     this.renderer.render(this.scene, this.camera);
+    if (this.shake >= 0) { this.updateCamera(); if (this.shake === 0) this.shake = -1; }
   }
 
   drawUnits(game, t, selection) {
@@ -306,5 +320,5 @@ export class Renderer {
     const i = this.renderer.info;
     return { calls: i.render.calls, triangles: i.render.triangles, geometries: i.memory.geometries, textures: i.memory.textures, lowSpec: this.lowSpec };
   }
-  reset() { this.unitYaw.clear(); this.fx.clear(); }
+  reset() { this.unitYaw.clear(); this.fx.clear(); this.shake = -1; }
 }

@@ -24,7 +24,8 @@ export class Input {
     canvas.addEventListener('dblclick', (e) => this.onDbl(e));
     canvas.addEventListener('contextmenu', (e) => { e.preventDefault(); this.onRight(e); });
     canvas.addEventListener('wheel', (e) => { e.preventDefault(); app.renderer.zoom(e.deltaY > 0 ? 1.1 : 1 / 1.1); }, { passive: false });
-    window.addEventListener('keydown', (e) => this.onKey(e));
+    window.addEventListener('keydown', (e) => { app.audio.unlock(); this.onKey(e); });
+    window.addEventListener('pointerdown', () => app.audio.unlock());
     window.addEventListener('keyup', (e) => this.held.delete(e.code));
     window.addEventListener('blur', () => this.held.clear());
   }
@@ -36,6 +37,7 @@ export class Input {
     if (e.code === 'Space') { e.preventDefault(); a.togglePause(); return; }
     if (e.code === 'Tab') { e.preventDefault(); a.toggleSpeed(); return; }
     if (e.code === 'Escape') { a.selection.clear(); return; }
+    if (e.code === 'KeyM') { if (!e.repeat) a.toggleMute(); return; }   // 음소거 (기존 단축키와 겹치지 않음)
     if (e.repeat) return;
     const k = KEYMAP[e.code];
     if (k) { e.preventDefault(); a.cmd(...k); }

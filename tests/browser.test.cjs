@@ -68,6 +68,8 @@ async function check(name, fn) {
     await page.waitForTimeout(150);
     const types = await ev(() => [...window.__app.selection].map(id => window.__app.game.unitById(id).type).sort());
     assert.deepEqual(types, ['m0', 'm0']);
+    // HUD는 다음 프레임에 갱신됨 → 벽시계 대신 조건 대기 (소프트웨어 GL은 프레임이 느림)
+    await page.waitForFunction(() => /외 1기/.test(document.getElementById('sel').innerText), null, { timeout: 5000 }).catch(() => {});
     assert.match(await text('#sel'), /외 1기/);
   });
 
@@ -194,6 +196,105 @@ async function check(name, fn) {
     console.log('  종별 삼각형:', Object.entries(r.out).map(([k, o]) => `${k}:${o.tri}`).join(' '));
   });
 
+  const raf2 = () => ev(() => new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res))));
+
+  await check('30. 합성 연출: 등급 색 빛기둥 + 시간차 고리 + 파편 (영웅↑은 화면 섬광, 효과음 merge/hero)', async () => {
+    const r = await ev(async () => {
+      const a = window.__app, g = a.game; a.paused = true;
+      for (const u of [...g.units]) g.removeUnit(u);
+      a.renderer.fx.clear();
+      const blast = async (type, cx) => {
+        const u1 = g.addUnit(type, cx, 4), u2 = g.addUnit(type, cx + 1, 4);
+        a.renderer.fx.clear();
+        const res = g.merge(u1.id, [u2.id]);
+        await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+        const fx = a.renderer.fx;
+        const pillar = fx.beams.find(b => b.pillar);
+        return { ok: res.ok, g: res.unit.def.grade, pillarH: pillar ? +pillar.b.y.toFixed(2) : 0, pillarCol: pillar ? pillar.col.getHexString() : '', rings: fx.rings.length, parts: fx.parts.length };
+      };
+      const lo = await blast('m0', 3), hi = await blast('b1', 6);
+      const { GRADES } = await import('/js/config.js');
+      return { lo, hi, flash: document.getElementById('flash').className, log: a.audio.log.slice(-6), calls: a.renderer.stats().calls };
+    });
+    assert.ok(r.lo.ok && r.hi.ok);
+    assert.equal(r.lo.g, 1); assert.equal(r.hi.g, 2);
+    assert.ok(r.lo.pillarH > 0 && r.hi.pillarH > r.lo.pillarH, `빛기둥 높이 희귀 ${r.lo.pillarH} < 영웅 ${r.hi.pillarH}`);
+    assert.ok(r.hi.rings >= 4 && r.hi.rings > r.lo.rings, `고리 ${r.lo.rings} → ${r.hi.rings}`);
+    assert.ok(r.hi.parts > r.lo.parts, '파편도 더 많음');
+    assert.match(r.flash, /on/, '영웅 합성 → 화면 섬광');
+    assert.ok(r.log.includes('merge') && r.log.includes('hero'), r.log.join(','));
+  });
+
+  await check('31. 보스 등장 경고: 배너 + 비네트 + 붉은 고리 + 카메라 흔들림 + 경고음', async () => {
+    const r = await ev(async () => {
+      const a = window.__app, g = a.game; a.paused = true;
+      g.time = 5 + 35 * 9 - 0.01; g.round = 9; g.tick();
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      const w = document.getElementById('bossWarn');
+      const red = a.renderer.fx.rings.filter(r => r.col.r > 0.9 && r.col.g < 0.2).length;
+      return { boss: !!g.boss, round: g.round, on: w.classList.contains('on'), vis: getComputedStyle(w).display, text: w.innerText, red, shake: a.renderer.shake, log: a.audio.log.slice(-3), cam: a.renderer.camTarget.x };
+    });
+    assert.ok(r.boss && r.round === 10, JSON.stringify(r));
+    assert.ok(r.on && r.vis !== 'none', '경고 배너 표시');
+    assert.match(r.text, /10라운드 보스 등장/);
+    assert.ok(r.red >= 5, `붉은 경고 고리 ${r.red}`);
+    assert.ok(r.shake > 0, '카메라 흔들림 중');
+    assert.ok(r.log.includes('boss'), r.log.join(','));
+    // 흔들림이 끝나면 카메라는 원래 자리 (camTarget 불변)
+    await ev(() => { window.__app.paused = false; });
+    await page.waitForFunction(() => window.__app.renderer.shake === -1, null, { timeout: 20000 });
+    await ev(() => { window.__app.paused = true; });
+    const cam = await ev(() => { const c = window.__app.renderer; const p = c.camera.position.clone(); c.updateCamera(); return p.distanceTo(c.camera.position); });
+    assert.ok(cam < 1e-6, `흔들림 후 카메라 복귀 (오차 ${cam})`);
+    await page.waitForFunction(() => !document.getElementById('bossWarn').classList.contains('on'), null, { timeout: 8000 });
+  });
+
+  await check('32. 피해 숫자: 보스는 묶어서 표시, 일반은 큰 한 방만 · 초당·동시 개수 상한', async () => {
+    const r = await ev(async () => {
+      const a = window.__app, g = a.game;
+      const boss = g.boss.m;
+      a.paused = false; a.speed = 1;
+      boss.hp -= boss.maxHp * 0.1;
+      const t0 = performance.now();
+      while (!document.querySelector('.dmg.boss[style*="block"]') && performance.now() - t0 < 8000) await new Promise(res => requestAnimationFrame(res));
+      a.paused = true;
+      const bossNum = document.querySelector('.dmg.boss[style*="block"]')?.textContent || '';
+      // 큰 한 방 200개가 한꺼번에 와도 일반 숫자는 초당 8개, 전체 24개 상한
+      for (let i = 0; i < 200; i++) g.emit({ t: 'bighit', x: 0, z: 0, v: 999, gr: 0 });
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      const shown = [...document.querySelectorAll('.dmg')].filter(e => e.style.display === 'block');
+      const res = { bossNum, normal: shown.filter(e => e.classList.contains('normal')).length, total: shown.length, pool: document.querySelectorAll('.dmg').length };
+      g.killMonster(boss); g.boss = null; g.cleanupDead();
+      return res;
+    });
+    assert.ok(r.bossNum.length > 0, '보스 피해 숫자 표시');
+    assert.ok(r.normal >= 1 && r.normal <= 8, `일반 숫자 ${r.normal} (≤8)`);
+    assert.ok(r.total <= 24 && r.pool === 24, JSON.stringify(r));
+  });
+
+  await check('33. 효과음: Web Audio 생성 · 뽑기 소리 · M 음소거 토글 (게임 상태 불변)', async () => {
+    await ev(() => { window.__app.game.minerals = 1000; window.__app.audio.lastAt = {}; });
+    await page.keyboard.press('KeyD');
+    await page.waitForFunction(() => window.__app.audio.log.slice(-1)[0] === 'draw' || window.__app.audio.log.slice(-1)[0] === 'hero', null, { timeout: 5000 }).catch(() => {});
+    let s = await ev(() => { const a = window.__app; return { ctx: !!a.audio.ctx, state: a.audio.ctx && a.audio.ctx.state, last: a.audio.log.slice(-2), muted: a.audio.muted }; });
+    assert.ok(s.ctx, 'AudioContext 생성 (사용자 입력 후)');
+    assert.ok(s.last.includes('draw') || s.last.includes('hero'), s.last.join(','));
+    assert.equal(s.muted, false);
+    const before = await ev(() => { const a = window.__app; return JSON.stringify({ m: a.game.minerals, n: a.game.units.length, p: a.paused, sp: a.speed, sel: a.selection.size }); });
+    await page.keyboard.press('KeyM');
+    await page.waitForFunction(() => /🔇/.test(document.getElementById('sound').textContent), null, { timeout: 5000 }).catch(() => {});
+    assert.equal(await ev(() => window.__app.audio.muted), true);
+    assert.match(await text('#sound'), /🔇/);
+    assert.equal(await ev(() => window.__app.audio.master.gain.value < 0.22 || window.__app.audio.muted), true);
+    assert.equal(await ev(() => localStorage.getItem('prismring.muted')), '1');
+    await page.keyboard.press('KeyM');
+    await page.waitForFunction(() => /🔊/.test(document.getElementById('sound').textContent), null, { timeout: 5000 }).catch(() => {});
+    assert.equal(await ev(() => window.__app.audio.muted), false);
+    assert.match(await text('#sound'), /🔊/);
+    const after = await ev(() => { const a = window.__app; return JSON.stringify({ m: a.game.minerals, n: a.game.units.length, p: a.paused, sp: a.speed, sel: a.selection.size }); });
+    assert.equal(after, before, 'M은 게임 상태를 바꾸지 않음');
+  });
+
   await check('28. 최악 장면 성능 예산 (draw call ≤ 200, 삼각형 ≤ 40만)', async () => {
     const r = await ev(async () => {
       const a = window.__app, g = a.game;
@@ -235,6 +336,7 @@ async function check(name, fn) {
     await page.waitForSelector('#overlay:not(.hidden)');
     assert.equal(await text('#ovTitle'), '패배');
     assert.match(await text('#ovReason'), /테스트 패배/);
+    assert.ok((await ev(() => window.__app.audio.log)).includes('defeat'), '패배 효과음');
     await page.click('#bRestart');
     await page.waitForFunction(() => window.__app.game.state === 'playing');
     const s = await ev(() => ({ st: window.__app.game.state, r: window.__app.game.round, m: window.__app.game.minerals, u: window.__app.game.units.length }));
@@ -246,6 +348,7 @@ async function check(name, fn) {
     await ev(() => { const g = window.__app.game; g.time = 5 + 35 * 39 - 0.01; g.round = 39; g.tick(); g.killMonster(g.boss.m); });
     await page.waitForSelector('#overlay:not(.hidden)');
     assert.equal(await text('#ovTitle'), '승리!');
+    assert.ok((await ev(() => window.__app.audio.log)).includes('victory'), '승리 효과음');
     await page.click('#bRestart');
     await page.waitForSelector('#overlay.hidden', { state: 'attached' });
   });

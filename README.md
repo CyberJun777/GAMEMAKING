@@ -20,13 +20,14 @@ python3 -m http.server 8765
 | 우클릭 | 선택 유닛 이동 |
 | 방향키 · 휠 | 카메라 이동 · 줌 |
 | Space / Tab | 일시정지 / 배속 |
+| M | 효과음 켜기/끄기 |
 
 길 위 몬스터가 70마리가 되면 패배, 40라운드 보스를 잡으면 승리.
 
 ## 테스트
 ```bash
 npm test               # 시뮬레이션 25개 (Node)
-npm run test:browser   # 브라우저 17개 (Playwright, 서버 먼저 실행)
+npm run test:browser   # 브라우저 21개 (Playwright, 서버 먼저 실행)
 npm run balance        # 봇 6판 밸런스 측정
 ```
 
