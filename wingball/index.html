@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>윙볼 — 공중 빗자루 구기</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="hud" class="hidden">
+    <div id="scoreboard">
+      <span class="team t0">청록</span><span id="score0">0</span>
+      <span id="clock">00:00</span>
+      <span id="score1">0</span><span class="team t1">주황</span>
+    </div>
+    <div id="status">
+      <div id="role">러너</div>
+      <div id="stamina"><div id="staminaFill"></div></div>
+      <div id="hold"></div>
+      <div id="switchHint"></div>
+    </div>
+    <canvas id="minimap" width="220" height="124"></canvas>
+    <div id="crosshair"></div>
+    <div id="banner"></div>
+    <div id="arrowComet" class="edge-arrow comet">▶</div>
+    <div id="arrowOrb" class="edge-arrow orb">▶</div>
+    <div id="lockHint">화면을 클릭하면 마우스로 조준합니다 (방향키로도 가능)</div>
+  </div>
+
+  <div id="startScreen" class="overlay">
+    <div class="panel">
+      <h1>WINGBALL <small>윙볼</small></h1>
+      <p class="tag">빗자루를 타고 코멧볼을 링에 꽂아라. 골든 오브를 잡으면 경기가 끝난다.</p>
+      <div class="diff">
+        <button data-diff="easy">쉬움</button>
+        <button data-diff="normal" class="sel">보통</button>
+        <button data-diff="hard">어려움</button>
+      </div>
+      <button id="startBtn" class="primary">경기 시작</button>
+      <table class="keys">
+        <tr><td>마우스 / 방향키</td><td>방향 조준</td><td>W / S</td><td>전진 / 감속</td></tr>
+        <tr><td>A / D</td><td>좌우 이동</td><td>Space / C</td><td>상승 / 하강</td></tr>
+        <tr><td>Shift</td><td>부스트</td><td>좌클릭(홀드) / F</td><td>슛 (오래 누를수록 강하게)</td></tr>
+        <tr><td>E</td><td>패스</td><td>우클릭</td><td>태클(스틸)</td></tr>
+        <tr><td>Tab</td><td>러너 ↔ 헌터</td><td>Q</td><td>볼·오브 쪽 보기</td></tr>
+      </table>
+      <p class="rules">링 통과 +10 · 골든 오브 +100 & 경기 종료 · 링 앞 흰 선 안으로 볼을 들고 들어가면 반칙 · 검은 스톰스톤에 맞으면 기절</p>
+    </div>
+  </div>
+
+  <div id="pauseScreen" class="overlay hidden">
+    <div class="panel small"><h2>일시정지</h2><p>클릭하거나 P를 눌러 계속</p></div>
+  </div>
+
+  <div id="endScreen" class="overlay hidden">
+    <div class="panel">
+      <h2 id="endTitle">승리!</h2>
+      <div id="endScore"></div>
+      <p id="endReason"></p>
+      <button id="restartBtn" class="primary">다시 하기</button>
+    </div>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

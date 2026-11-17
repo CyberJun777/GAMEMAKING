@@ -1,0 +1,4 @@
+{
+  "field": { "map": "grass_basecolor.jpg", "normalMap": "grass_normal.jpg", "roughnessMap": "grass_roughness.png" },
+  "stand": { "map": "concrete_basecolor.jpg", "normalMap": "concrete_normal.jpg", "roughnessMap": "concrete_roughness.png" }
+}
