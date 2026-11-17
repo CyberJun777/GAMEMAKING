@@ -1,11 +1,13 @@
 // Three.js 렌더러. 시뮬레이션 상태를 읽기만 한다 (상태를 바꾸지 않음).
 import * as THREE from '../../vendor/three.module.js';
-import { BOARD, GRADES, FACTIONS } from '../config.js';
+import { BOARD, GRADES, FACTIONS, UNITS } from '../config.js';
+import { UNIT_SHAPES, ANIM } from './unitShapes.js';
 import { cellToWorld } from '../sim/board.js';
 import { buildBoard } from './board.js';
 import { Fx } from './fx.js';
 
 const MAX_UNITS = 220, MAX_MON = 160;
+const MODEL_SCALE = 1.22;
 const tmpM = new THREE.Matrix4(), tmpQ = new THREE.Quaternion(), tmpS = new THREE.Vector3(), tmpP = new THREE.Vector3(), tmpE = new THREE.Euler();
 const tmpC = new THREE.Color();
 const UP = new THREE.Vector3(0, 1, 0);
@@ -112,27 +114,27 @@ export class Renderer {
     this.camera.aspect = w / h; this.camera.updateProjectionMatrix();
   }
 
-  // ───────── 유닛: 진영별 실루엣 + 등급색 받침/장식. 부품마다 InstancedMesh 1개
+  // ───────── 유닛: 15종마다 고유 실루엣. 몸체(진영색) + 장식(등급색) = 종마다 InstancedMesh 2개
   buildUnits() {
     const std = (o = {}) => new THREE.MeshStandardMaterial({ roughness: 0.55, metalness: 0.2, ...o });
-    const glow = (o = {}) => new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.1, emissive: '#ffffff', emissiveIntensity: 0.55, ...o });
+    const glow = (o = {}) => new THREE.MeshStandardMaterial({ roughness: 0.3, metalness: 0.1, emissive: '#ffffff', emissiveIntensity: 0.45, ...o });
     const P = this.parts = {};
-    P.base = inst(new THREE.CylinderGeometry(0.4, 0.45, 0.14, 10).translate(0, 0.07, 0), glow({ emissiveIntensity: 0.35 }), MAX_UNITS);
-    // 기계: 사각 차체 + 회전 포신
-    P.mechBody = inst(merge([tr(new THREE.BoxGeometry(0.48, 0.26, 0.48), 0, 0.27, 0), tr(new THREE.CylinderGeometry(0.17, 0.2, 0.16, 8), 0, 0.48, 0)]), std({ metalness: 0.6, roughness: 0.4 }), MAX_UNITS);
-    P.mechGun = inst(merge([tr(new THREE.CylinderGeometry(0.055, 0.055, 0.5, 6), 0, 0.5, 0.25, Math.PI / 2), tr(new THREE.BoxGeometry(0.12, 0.1, 0.12), 0, 0.5, 0.5)]), glow({ emissiveIntensity: 0.3 }), MAX_UNITS);
-    // 생체: 납작한 구 + 가시 3개
-    const spikes = [];
-    for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; spikes.push(tr(new THREE.ConeGeometry(0.07, 0.32, 5), Math.cos(a) * 0.2, 0.42, Math.sin(a) * 0.2, Math.sin(a) * 0.5, 0, -Math.cos(a) * 0.5)); }
-    spikes.push(tr(new THREE.ConeGeometry(0.08, 0.38, 5), 0, 0.62, 0));
-    P.bioBody = inst(new THREE.SphereGeometry(0.27, 12, 8).scale(1, 0.8, 1).translate(0, 0.33, 0), std({ roughness: 0.75, metalness: 0 }), MAX_UNITS);
-    P.bioSpike = inst(merge(spikes), glow({ emissiveIntensity: 0.25 }), MAX_UNITS);
-    // 비전: 떠 있는 결정 + 고리
-    P.arcCrystal = inst(new THREE.OctahedronGeometry(0.24, 0).scale(1, 1.5, 1), glow({ emissiveIntensity: 0.6, flatShading: true }), MAX_UNITS);
-    P.arcRing = inst(new THREE.TorusGeometry(0.3, 0.03, 6, 20).rotateX(Math.PI / 2), glow({ emissiveIntensity: 0.4 }), MAX_UNITS);
+    P.base = inst(new THREE.CylinderGeometry(0.4, 0.45, 0.14, 10).translate(0, 0.07, 0), glow({ emissiveIntensity: 0.22 }), MAX_UNITS);
     // 전설·신 후광
     P.halo = inst(new THREE.TorusGeometry(0.5, 0.035, 6, 28).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#fff', transparent: true, opacity: 0.9, toneMapped: false }), MAX_UNITS);
     P.halo.castShadow = false;
+    // 재질은 진영별 1개씩 공유 (몸체), 장식은 1개 공유
+    const bodyMat = { mech: std({ metalness: 0.6, roughness: 0.38 }), bio: std({ roughness: 0.75, metalness: 0 }), arc: std({ flatShading: true, roughness: 0.3, emissive: '#6a2fb0', emissiveIntensity: 0.5 }) };
+    const trimMat = glow();
+    this.typeMesh = {};
+    for (const def of UNITS) {
+      const shape = UNIT_SHAPES[def.id]();
+      const body = inst(merge(shape.body), bodyMat[def.faction], MAX_UNITS);
+      const trim = inst(merge(shape.trim), trimMat, MAX_UNITS);
+      body.name = `unit-${def.id}-body`; trim.name = `unit-${def.id}-trim`;
+      P[`${def.id}B`] = body; P[`${def.id}T`] = trim;
+      this.typeMesh[def.id] = { body, trim, anim: shape.anim || ANIM[def.faction], hover: shape.hover || 0 };
+    }
     for (const m of Object.values(P)) this.scene.add(m);
   }
 
@@ -215,10 +217,14 @@ export class Renderer {
       const s = sc * (born < 1 ? 0.5 + born * 0.5 : 1);
       const gc = gradeCol[g], fc = facCol[f];
       put(P.base, u.x, 0, u.z, s, 0, gc, s * 1.05, 1, s * 1.05);
-      const yaw = this.unitYaw.get(u.id) ?? 0;
-      if (f === 'mech') { put(P.mechBody, u.x, 0, u.z, s, yaw, fc); put(P.mechGun, u.x, 0, u.z, s, yaw, gc); }
-      else if (f === 'bio') { const p = 1 + Math.sin(t * 3 + u.id) * 0.04; put(P.bioBody, u.x, 0, u.z, s, 0, fc, s * p, s / p, s * p); put(P.bioSpike, u.x, 0, u.z, s, t * 0.3 + u.id, gc); }
-      else { const h = 0.48 + Math.sin(t * 2 + u.id) * 0.06; put(P.arcCrystal, u.x, h * s, u.z, s, t * 1.2 + u.id, tmpC.copy(fc).lerp(gc, 0.35)); put(P.arcRing, u.x, h * s, u.z, s, 0, gc); }
+      const tm = this.typeMesh[u.type];
+      let y = tm.hover * s, yaw = 0, sx = s, sy = s;
+      if (tm.anim === 'aim') { yaw = this.unitYaw.get(u.id) ?? 0; if (tm.hover) y += Math.sin(t * 3 + u.id) * 0.04; }
+      else if (tm.anim === 'pulse') { const p = 1 + Math.sin(t * 3 + u.id) * 0.04; sx = s * p; sy = s / p; yaw = u.id * 1.3; }
+      else { y += 0.06 + Math.sin(t * 2 + u.id) * 0.06; yaw = t * 0.9 + u.id; }
+      const k = MODEL_SCALE;   // 받침보다 모델을 크게 → 실루엣이 먼저 보이게
+      put(tm.body, u.x, y, u.z, s, yaw, fc, sx * k, sy * k, sx * k);
+      put(tm.trim, u.x, y, u.z, s, yaw, gc, sx * k, sy * k, sx * k);
       if (g >= 3) put(P.halo, u.x, 0.95 * s + Math.sin(t * 2 + u.id) * 0.04, u.z, s * (g === 4 ? 1.1 : 0.85), t, gc);
       if (selection.has(u.id)) {
         tmpM.makeTranslation(u.x, 0, u.z);

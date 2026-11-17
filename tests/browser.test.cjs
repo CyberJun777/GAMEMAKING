@@ -160,6 +160,40 @@ async function check(name, fn) {
     }
   });
 
+  await check('29. 유닛 15종 실루엣이 전부 다름 (종마다 고유 InstancedMesh, 몸체=진영색 · 장식=등급색)', async () => {
+    const r = await ev(async () => {
+      const a = window.__app, g = a.game;
+      const { UNITS, GRADES, FACTIONS } = await import('/js/config.js');
+      for (const u of [...g.units]) g.removeUnit(u);
+      UNITS.forEach((d, i) => g.addUnit(d.id, 3 + (i % 5) * 2, 3 + Math.floor(i / 5) * 2));
+      await new Promise(res => requestAnimationFrame(() => requestAnimationFrame(res)));
+      const out = {};
+      for (const d of UNITS) {
+        const tm = a.renderer.typeMesh[d.id];
+        const sig = [tm.body, tm.trim].map(m => { m.geometry.computeBoundingBox(); const b = m.geometry.boundingBox; return [m.geometry.attributes.position.count, b.max.x - b.min.x, b.max.y - b.min.y, b.max.z - b.min.z].map(v => +(+v).toFixed(3)).join(','); }).join('|');
+        const tri = (tm.body.geometry.attributes.position.count + tm.trim.geometry.attributes.position.count) / 3;
+        out[d.id] = { sig, tri, count: [tm.body.count, tm.trim.count], faction: d.faction, grade: d.grade };
+      }
+      const facHex = Object.fromEntries(FACTIONS.map(f => [f.key, f.color]));
+      const col = (m) => { const c = m.instanceColor.array; return [c[0], c[1], c[2]]; };
+      const tmB = a.renderer.typeMesh.a0;
+      const want = (hex) => { const c = new (a.renderer.typeMesh.a0.body.material.color.constructor)(hex); return [c.r, c.g, c.b]; };
+      const colors = { body: col(tmB.body), trim: col(tmB.trim), fac: want(facHex.arc), grade: want(GRADES[0].color) };
+      for (const u of [...g.units]) g.removeUnit(u);
+      return { out, colors };
+    });
+    const sigs = Object.values(r.out).map(o => o.sig);
+    assert.equal(new Set(sigs).size, 15, '15종 지오메트리가 서로 달라야 함');
+    for (const [id, o] of Object.entries(r.out)) {
+      assert.deepEqual(o.count, [1, 1], `${id} 인스턴스 1기`);
+      assert.ok(o.tri <= 1500, `${id} 삼각형 ${o.tri} ≤ 1500`);
+    }
+    const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) < 0.01);
+    assert.ok(near(r.colors.body, r.colors.fac), '몸체 = 진영색');
+    assert.ok(near(r.colors.trim, r.colors.grade), '장식 = 등급색');
+    console.log('  종별 삼각형:', Object.entries(r.out).map(([k, o]) => `${k}:${o.tri}`).join(' '));
+  });
+
   await check('28. 최악 장면 성능 예산 (draw call ≤ 200, 삼각형 ≤ 40만)', async () => {
     const r = await ev(async () => {
       const a = window.__app, g = a.game;
