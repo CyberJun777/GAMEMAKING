@@ -1,1 +1,11 @@
-{ "name": "prism-ring-td", "private": true, "type": "module" }
+{
+  "name": "prism-ring-td",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8765",
+    "test": "node --test tests/sim.test.js",
+    "test:browser": "node tests/browser.test.cjs",
+    "balance": "node tests/balance.js 6"
+  }
+}
