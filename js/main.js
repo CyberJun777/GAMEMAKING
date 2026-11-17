@@ -108,6 +108,7 @@ class App {
     this.renderer.reset();
     this.paused = false;
     this.hud.last = {};
+    document.getElementById('overlay').classList.add('hidden');   // 다음 프레임을 기다리지 않고 즉시 닫기
   }
 }
 

@@ -134,11 +134,15 @@ async function check(name, fn) {
 
   await check('24d. 방향키는 카메라만 움직임 (게임 상태 불변)', async () => {
     const before = await ev(() => ({ cam: window.__app.renderer.camTarget.x, m: window.__app.game.minerals, n: window.__app.game.units.length, sel: window.__app.selection.size }));
-    await page.keyboard.down('ArrowRight'); await page.waitForTimeout(400); await page.keyboard.up('ArrowRight');
+    await page.keyboard.down('ArrowRight');
+    await page.waitForFunction((x0) => window.__app.renderer.camTarget.x > x0 + 0.5, before.cam, { timeout: 10000 }).catch(() => {});
+    await page.keyboard.up('ArrowRight');
     const after = await ev(() => ({ cam: window.__app.renderer.camTarget.x, m: window.__app.game.minerals, n: window.__app.game.units.length, sel: window.__app.selection.size }));
     assert.ok(after.cam > before.cam + 0.5, `카메라 이동 ${before.cam} → ${after.cam}`);
     assert.equal(after.m, before.m); assert.equal(after.n, before.n); assert.equal(after.sel, before.sel);
-    await page.keyboard.down('ArrowLeft'); await page.waitForTimeout(400); await page.keyboard.up('ArrowLeft');
+    await page.keyboard.down('ArrowLeft');
+    await page.waitForFunction((x0) => window.__app.renderer.camTarget.x <= x0, before.cam, { timeout: 10000 }).catch(() => {});
+    await page.keyboard.up('ArrowLeft');
   });
 
   await check('25. HUD 숫자 = 게임 상태 (플레이 10초 후)', async () => {
@@ -161,7 +165,8 @@ async function check(name, fn) {
       const a = window.__app, g = a.game;
       const { spawnMonster } = await import('/js/sim/waves.js');
       const { BUILD_CELLS } = await import('/js/sim/board.js');
-      const { UNITS } = await import('/js/config.js');
+      const { UNITS, WAVES } = await import('/js/config.js');
+      const savedFirst = WAVES.firstRoundAt; WAVES.firstRoundAt = 1e9;   // 측정 중 새 라운드가 끼어들지 않게 라운드 시계 정지
       for (const u of [...g.units]) g.removeUnit(u);
       for (const m of g.monsters) m.alive = false; g.cleanupDead(); g.boss = g.mission = null; g.spawnLeft = 0;
       BUILD_CELLS.slice(0, 120).forEach((c, i) => g.addUnit(UNITS[i % 15].id, c.cx, c.cy));
@@ -175,6 +180,7 @@ async function check(name, fn) {
       let maxCalls = 0, maxTri = 0;
       for (let i = 0; i < 30; i++) { await new Promise(res => requestAnimationFrame(res)); const s = a.renderer.stats(); maxCalls = Math.max(maxCalls, s.calls); maxTri = Math.max(maxTri, s.triangles); }
       const fx = a.renderer.fx;
+      WAVES.firstRoundAt = savedFirst;
       return { maxCalls, maxTri, beams: fx.beams.length, parts: fx.parts.length, units: g.units.length, mons: g.monsters.length, fps: a.fps, frameMs: a.frameMs, lowSpec: a.renderer.lowSpec };
     });
     console.log('  최악 장면:', JSON.stringify(r));
@@ -185,7 +191,7 @@ async function check(name, fn) {
     assert.ok(r.maxCalls <= 200, `draw calls ${r.maxCalls}`);
     assert.ok(r.maxTri <= 400000, `triangles ${r.maxTri}`);
     // 시뮬레이션 틱 비용 (최악 장면)
-    const tick = await ev(() => { const g = window.__app.game; const t0 = performance.now(); for (let i = 0; i < 60; i++) g.tick(); return (performance.now() - t0) / 60; });
+    const tick = await ev(async () => { const { WAVES } = await import('/js/config.js'); const f = WAVES.firstRoundAt; WAVES.firstRoundAt = 1e9; const g = window.__app.game; const t0 = performance.now(); for (let i = 0; i < 60; i++) g.tick(); WAVES.firstRoundAt = f; return (performance.now() - t0) / 60; });
     console.log('  틱당 ms:', tick.toFixed(3));
     assert.ok(tick <= 2, `tick ${tick}ms`);
   });
@@ -196,7 +202,7 @@ async function check(name, fn) {
     assert.equal(await text('#ovTitle'), '패배');
     assert.match(await text('#ovReason'), /테스트 패배/);
     await page.click('#bRestart');
-    await page.waitForTimeout(200);
+    await page.waitForFunction(() => window.__app.game.state === 'playing');
     const s = await ev(() => ({ st: window.__app.game.state, r: window.__app.game.round, m: window.__app.game.minerals, u: window.__app.game.units.length }));
     assert.deepEqual(s, { st: 'playing', r: 0, m: 200, u: 0 });
     assert.ok(await page.locator('#overlay').evaluate(el => el.classList.contains('hidden')));
@@ -207,14 +213,17 @@ async function check(name, fn) {
     await page.waitForSelector('#overlay:not(.hidden)');
     assert.equal(await text('#ovTitle'), '승리!');
     await page.click('#bRestart');
+    await page.waitForSelector('#overlay.hidden', { state: 'attached' });
   });
 
   await check('실제 플레이: 성실 플레이 60초 동안 몬스터 처치·라운드 진행 (화면 포함)', async () => {
     await ev(() => { const a = window.__app; a.paused = false; a.speed = 2; a.game.minerals = 600; });
     for (let i = 0; i < 12; i++) await page.keyboard.press('KeyD');
-    await page.waitForTimeout(12000);
-    const s = await ev(() => ({ k: window.__app.game.stats.kills, r: window.__app.game.round, st: window.__app.game.state }));
-    assert.ok(s.k >= 10 && s.r >= 1 && s.st === 'playing', JSON.stringify(s));
+    assert.equal(await ev(() => window.__app.game.units.length), 12, 'D 12번 = 유닛 12기');
+    // 벽시계가 아니라 게임 시간 기준으로 대기 (GPU 없는 환경은 프레임이 느림)
+    await page.waitForFunction(() => window.__app.game.time >= 30, null, { timeout: 90000 });
+    const s = await ev(() => ({ k: window.__app.game.stats.kills, r: window.__app.game.round, st: window.__app.game.state, t: window.__app.game.time }));
+    assert.ok(s.k >= 20 && s.r >= 1 && s.st === 'playing', JSON.stringify(s));
     await page.screenshot({ path: process.env.SHOT || 'test-results/play.png' });
   });
 

@@ -4,49 +4,68 @@ import { BOARD } from '../config.js';
 import { cellToWorld, isPath } from '../sim/board.js';
 
 const N = BOARD.size;
+const loader = new THREE.TextureLoader();
 
-// 칸 격자선 텍스처 (절차적, 텍스처 파일 없이도 동작)
-function gridTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.fillStyle = '#ffffff'; g.fillRect(0, 0, 128, 128);
-  g.strokeStyle = 'rgba(0,0,0,0.28)'; g.lineWidth = 4; g.strokeRect(0, 0, 128, 128);
-  g.strokeStyle = 'rgba(255,255,255,0.0)';
-  const t = new THREE.CanvasTexture(c);
+// 반복 타일 텍스처 로드 (색상맵만 sRGB)
+function tex(name, repeatX, repeatY = repeatX, srgb = false) {
+  const t = loader.load(`textures/${name}.png`);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
-  t.colorSpace = THREE.SRGBColorSpace;
+  t.repeat.set(repeatX, repeatY);
   t.anisotropy = 8;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   return t;
+}
+function pbr(name, rx, ry = rx, extra = {}) {
+  return new THREE.MeshStandardMaterial({
+    map: tex(`${name}_basecolor`, rx, ry, true),
+    normalMap: tex(`${name}_normal`, rx, ry),
+    roughnessMap: tex(`${name}_roughness`, rx, ry),
+    color: '#ffffff', roughness: 1, metalness: 0.05, ...extra
+  });
 }
 
 export function buildBoard(scene) {
   const out = {};
   // 바깥 땅 (보드 주변)
-  out.groundMat = new THREE.MeshStandardMaterial({ color: '#1a2130', roughness: 1 });
+  out.groundMat = pbr('ground', 8);                 // 80유닛 / 8 = 타일당 10유닛
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80).rotateX(-Math.PI / 2), out.groundMat);
   ground.position.y = -0.36; ground.receiveShadow = true;
   scene.add(ground);
 
   // 보드 받침 (단상)
-  out.plinthMat = new THREE.MeshStandardMaterial({ color: '#2a3344', roughness: 0.7, metalness: 0.3 });
+  out.plinthMat = pbr('metal', 4, 0.5, { metalness: 0.55 });
   const plinth = new THREE.Mesh(new THREE.BoxGeometry(N + 0.6, 0.36, N + 0.6), out.plinthMat);
   plinth.position.y = -0.19; plinth.receiveShadow = true; plinth.castShadow = true;
   scene.add(plinth);
 
   // 배치 칸 바닥: 보드 전체를 덮는 한 장 + 격자 (repeat = 칸 수)
-  const grid = gridTexture(); grid.repeat.set(N, N);
-  out.floorMat = new THREE.MeshStandardMaterial({ color: '#3b4a5e', map: grid, roughness: 0.9, metalness: 0.05 });
+  // 텍스처 1장 = 4x4 판석 → repeat N/4 이면 판석 1장이 정확히 1칸
+  out.floorMat = pbr('floor', N / 4, N / 4, { normalScale: new THREE.Vector2(0.8, 0.8) });
   const floor = new THREE.Mesh(new THREE.PlaneGeometry(N, N).rotateX(-Math.PI / 2), out.floorMat);
   floor.receiveShadow = true;
   scene.add(floor);
 
   // 몬스터 길: 칸마다 살짝 낮은 판을 하나의 InstancedMesh로
-  out.pathMat = new THREE.MeshStandardMaterial({ color: '#4a2f3a', roughness: 0.85, emissive: '#2a0812', emissiveIntensity: 0.35 });
+  out.pathMat = pbr('path', 1, 1, { emissive: '#ff7a3a', emissiveMap: tex('path_emissive', 1, 1, true), emissiveIntensity: 1.0 });
   const cells = [];
   for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) if (isPath(x, y)) cells.push(cellToWorld(x, y));
-  const path = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 0.06, 1), out.pathMat, cells.length);
+  const PATH_UV = 4;   // 텍스처 1장이 4칸을 덮음
+  const pos = [], uv = [], nor = [], idx = [];
+  cells.forEach((p, i) => {
+    const y = 0.012;
+    for (const [dx, dz] of [[-0.5, -0.5], [0.5, -0.5], [0.5, 0.5], [-0.5, 0.5]]) {
+      const x = p.x + dx, z = p.z + dz;
+      pos.push(x, y, z); nor.push(0, 1, 0); uv.push((x + N / 2) / PATH_UV, -(z + N / 2) / PATH_UV);
+    }
+    const o = i * 4; idx.push(o, o + 2, o + 1, o, o + 3, o + 2);
+  });
+  const pg0 = new THREE.BufferGeometry();
+  pg0.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  pg0.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  pg0.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  pg0.setIndex(idx);
+  const path = new THREE.Mesh(pg0, out.pathMat);
   const m = new THREE.Matrix4();
-  cells.forEach((p, i) => { m.makeTranslation(p.x, 0.005, p.z); path.setMatrixAt(i, m); });
   path.receiveShadow = true;
   scene.add(path);
   out.path = path;

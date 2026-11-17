@@ -1,7 +1,7 @@
 // Three.js 렌더러. 시뮬레이션 상태를 읽기만 한다 (상태를 바꾸지 않음).
 import * as THREE from '../../vendor/three.module.js';
-import { BOARD, GRADES, FACTIONS, UNITS } from '../config.js';
-import { cellToWorld, isPath, PATH_LENGTH } from '../sim/board.js';
+import { BOARD, GRADES, FACTIONS } from '../config.js';
+import { cellToWorld } from '../sim/board.js';
 import { buildBoard } from './board.js';
 import { Fx } from './fx.js';
 
@@ -75,7 +75,7 @@ export class Renderer {
     this.updateCamera();
 
     // 조명
-    scene.add(new THREE.HemisphereLight('#a9c4ff', '#1b2030', 0.85));
+    scene.add(new THREE.HemisphereLight('#a9c4ff', '#262a33', 0.85));   // 지면 바운스 = 현무암 바닥 톤
     const sun = this.sun = new THREE.DirectionalLight('#fff1dc', 2.3);
     sun.position.set(-8, 16, 6);
     sun.castShadow = true;
@@ -137,7 +137,7 @@ export class Renderer {
   }
 
   buildMonsters() {
-    this.monMesh = inst(new THREE.IcosahedronGeometry(0.21, 0), new THREE.MeshStandardMaterial({ roughness: 0.5, flatShading: true, emissive: '#3a0a18', emissiveIntensity: 0.6 }), MAX_MON);
+    this.monMesh = inst(new THREE.IcosahedronGeometry(0.21, 0), new THREE.MeshStandardMaterial({ roughness: 0.5, flatShading: true, emissive: '#2a1440', emissiveIntensity: 0.6 }), MAX_MON);
     this.scene.add(this.monMesh);
     // 보스·미션 보스 (동시에 최대 1마리씩)
     const bossGeo = merge([new THREE.IcosahedronGeometry(0.42, 1), ...[0, 1, 2, 3, 4, 5].map(i => { const a = i * Math.PI / 3; return tr(new THREE.ConeGeometry(0.09, 0.4, 5), Math.cos(a) * 0.42, 0.1, Math.sin(a) * 0.42, 0, 0, 0).rotateY(0); })]);
@@ -190,6 +190,7 @@ export class Renderer {
     this.clock += dt;
     const t = this.clock;
     this.renderer.info.reset();
+    this.board.pathMat.emissiveIntensity = 0.85 + Math.sin(t * 1.6) * 0.25;
     this.drawUnits(game, t, selection);
     this.drawMonsters(game, alpha, t);
     this.fx.update(dt, this.camera);
@@ -241,8 +242,8 @@ export class Renderer {
     const bg = this.barBg, fg = this.barFg; bg.count = fg.count = 0;
     this.bossMesh.visible = this.missionMesh.visible = false;
     const camQ = this.camera.quaternion;
-    const hue = (game.round * 0.07) % 1;
-    const monCol = tmpC.setHSL((0.95 + hue * 0.3) % 1, 0.65, 0.5).clone();
+    // 몬스터 색: 붉은 용암 길과 대비되는 밝은 보라~자홍 (라운드마다 조금씩 변화)
+    const monCol = new THREE.Color().setHSL(0.74 + ((game.round * 0.037) % 0.14), 0.75, 0.66);
     const slowCol = new THREE.Color('#79c8ff');
     const bar = (x, y, z, w, ratio, col) => {
       tmpM.compose(tmpP.set(x, y, z), camQ, tmpS.set(w, 0.07, 1));
