@@ -78,12 +78,12 @@ export const WAVES = {
   monsterLimit: 70,
   lives: 3,
   bossRounds: [10, 20, 30, 40],
-  bossTimeLimit: 70,
+  bossTimeLimit: 90,   // 보스가 고리를 약 1.5바퀴 (분산 배치에서도 모든 유닛 앞을 지나감)
   hpMult: 1.0,          // 난이도 상수
   normalHp: (r) => 25 * Math.pow(1.215, r - 1),
   normalArmor: (r) => Math.floor(r / 4),
   normalSpeed: 1.6,
-  bossHpMult: 6,
+  bossHpMult: 3.5,
   bossArmorMult: 3,
   bossSpeed: 0.9
 };

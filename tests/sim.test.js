@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Game, UNIT_BY_ID } from '../js/sim/game.js';
 import { ECON, WAVES, GRADES, MISSIONS, MISSION_RULES, UNITS, ACHIEVEMENTS } from '../js/config.js';
-import { PATH_LENGTH, BUILD_CELLS, isPath, cellToWorld } from '../js/sim/board.js';
+import { PATH_LENGTH, BUILD_CELLS, PLACE_ORDER, isPath, cellToWorld } from '../js/sim/board.js';
 import { diligentBot, idleBot } from './bots.js';
 
 const fresh = (seed = 7) => new Game({ seed });
@@ -25,6 +25,25 @@ test('1. 뽑기: 광물 -50, 빈 칸에 유닛 1기', () => {
   assert.equal(g.minerals, ECON.startMinerals - ECON.drawCost);
   assert.equal(g.units.length, 1);
   assert.ok(!isPath(r.unit.cx, r.unit.cy));
+});
+
+test('1b. 뽑기 자동 배치가 고리 길 둘레에 고르게 퍼짐 (한쪽 몰림 없음)', () => {
+  // 배치 순서는 모든 배치 칸을 정확히 한 번씩 포함
+  assert.equal(PLACE_ORDER.length, BUILD_CELLS.length);
+  assert.equal(new Set(PLACE_ORDER.map(c => c.cx * 100 + c.cy)).size, BUILD_CELLS.length);
+  // 길에 붙은 안쪽 칸이 먼저 (기존 우선순위 유지)
+  assert.ok(PLACE_ORDER.slice(0, 40).every(c => c.inner && c.dp === 1));
+  const g = fresh();
+  g.minerals = 1e6;
+  const side = (u) => { const r = Math.floor(u.cy <= 2 ? 0 : u.cx >= 13 ? 1 : u.cy >= 13 ? 2 : u.cx <= 2 ? 3 : -1); return r; };
+  const sides = [0, 0, 0, 0];
+  for (let i = 0; i < 8; i++) { const u = g.draw().unit; sides[side(u)]++; }
+  assert.ok(sides.every(n => n >= 1 && n <= 3), `첫 8기가 네 변에 고르게: ${sides}`);
+  for (let i = 0; i < 32; i++) g.draw();
+  // 40기: 둘레를 8구간으로 나눴을 때 어느 구간도 비거나 몰리지 않음
+  const bins = new Array(8).fill(0);
+  for (const u of g.units) bins[Math.floor(PLACE_ORDER.find(c => c.cx === u.cx && c.cy === u.cy).rp * 8) % 8]++;
+  assert.ok(Math.max(...bins) - Math.min(...bins) <= 2, `둘레 8구간 분포: ${bins}`);
 });
 
 test('2. 광물 부족 / 빈 칸 없음이면 뽑기 불가, 광물 그대로', () => {
@@ -248,7 +267,7 @@ test('15. 보스 라운드에 보스 등장, 처치 시 결정 1 + 광물 100', 
   assert.equal(g.boss, null);
 });
 
-test('16. 보스를 70초 안에 못 잡으면 목숨 -1, 보스 사라짐', () => {
+test('16. 보스를 제한 시간(90초) 안에 못 잡으면 목숨 -1, 보스 사라짐', () => {
   const g = fresh();
   g.time = WAVES.firstRoundAt + WAVES.roundLength * 9 - g.dt / 2; g.round = 9;
   g.tick();

@@ -41,9 +41,44 @@ function distToPath(cx, cy) {
   }
   return best;
 }
+// 칸이 고리 길의 어디쯤 붙어 있는지 (0~1, 생성 지점부터 시계 방향 둘레 비율)
+export function ringParam(cx, cy) {
+  const { x, z } = cellToWorld(cx, cy);
+  let best = Infinity, bestD = 0;
+  for (let s = 0; s < 4; s++) {
+    const a = corners[s], b = corners[(s + 1) % 4];
+    const vx = b.x - a.x, vz = b.z - a.z, L2 = vx * vx + vz * vz;
+    const t = Math.max(0, Math.min(1, ((x - a.x) * vx + (z - a.z) * vz) / L2));
+    const px = a.x + vx * t - x, pz = a.z + vz * t - z, dd = px * px + pz * pz;
+    if (dd < best - 1e-9) { best = dd; bestD = (s + t) * segLen; }
+  }
+  return bestD / PATH_LENGTH;
+}
 export const BUILD_CELLS = [];
 for (let cy = 0; cy < N; cy++) for (let cx = 0; cx < N; cx++) {
-  if (isBuildable(cx, cy)) BUILD_CELLS.push({ cx, cy, inner: isInner(cx, cy), dp: distToPath(cx, cy) });
+  if (isBuildable(cx, cy)) BUILD_CELLS.push({ cx, cy, inner: isInner(cx, cy), dp: distToPath(cx, cy), rp: ringParam(cx, cy) });
 }
-export const PLACE_ORDER = [...BUILD_CELLS].sort((a, b) =>
-  (a.dp - b.dp) || ((b.inner ? 1 : 0) - (a.inner ? 1 : 0)) || (a.cy - b.cy) || (a.cx - b.cx));
+// 뽑기 자동 배치 순서: 우선순위(길에 가까운 칸 → 안쪽)는 그대로, 같은 우선순위 안에서는
+// 황금비 수열로 고리 둘레 위치를 골라 연속 배치가 한쪽에 몰리지 않고 둘레 전체에 고르게 퍼진다.
+function spreadAlongRing(cells) {
+  const left = [...cells].sort((a, b) => a.rp - b.rp || a.cy - b.cy || a.cx - b.cx);
+  const out = [];
+  const PHI = 0.6180339887;
+  for (let k = 0; left.length; k++) {
+    const target = (k * PHI) % 1;
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < left.length; i++) {
+      const d = Math.abs(left[i].rp - target), w = Math.min(d, 1 - d);
+      if (w < bd - 1e-9) { bd = w; bi = i; }
+    }
+    out.push(left.splice(bi, 1)[0]);
+  }
+  return out;
+}
+const tiers = new Map();
+for (const c of BUILD_CELLS) {
+  const key = c.dp * 2 + (c.inner ? 0 : 1);
+  if (!tiers.has(key)) tiers.set(key, []);
+  tiers.get(key).push(c);
+}
+export const PLACE_ORDER = [...tiers.keys()].sort((a, b) => a - b).flatMap(k => spreadAlongRing(tiers.get(k)));

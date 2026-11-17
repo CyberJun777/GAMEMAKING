@@ -25,7 +25,7 @@ python3 -m http.server 8765
 
 ## 테스트
 ```bash
-npm test               # 시뮬레이션 24개 (Node)
+npm test               # 시뮬레이션 25개 (Node)
 npm run test:browser   # 브라우저 17개 (Playwright, 서버 먼저 실행)
 npm run balance        # 봇 6판 밸런스 측정
 ```
